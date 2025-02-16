@@ -2,8 +2,9 @@ import os
 import requests
 
 # API URLs
-BASE_URL = "http://localhost:5000/ocean/api"
+BASE_URL = "https://rescomp-test-2.st-andrews.ac.uk/ocean/api/"
 SELECTIONS_ENDPOINT = f"{BASE_URL}/metadata/selections/"
+ENCOUNTERS_ENDPOINT = f"{BASE_URL}/metadata/encounters/"
 FILES_ENDPOINT = f"{BASE_URL}/filespace/file/"
 SPECTROGRAM_ENDPOINT = f"{BASE_URL}/filespace/spectrogram/"
 AUTH_ENDPOINT = f"{BASE_URL}/auth/login/"
@@ -36,20 +37,43 @@ def fetch_selections(recording_id, access_token):
         print(f"Error fetching selections: {response.status_code} - {response.text}")
         return []
 
-def download_selection_file(selection_file_id, access_token):
-    """Download a selection file and save it with the given filename."""
-    url = f"{FILES_ENDPOINT}?id={selection_file_id}"
+def download_encounters(encounter_id, access_token):
+    url = f"{ENCOUNTERS_ENDPOINT}?id={encounter_id}"
     response = requests.get(url, stream=True, headers=create_authorization_header(access_token))  # Stream for large files
 
     content_type = response.headers.get("Content-Type", "")
     content_disposition = response.headers.get("Content-Disposition", "")
-
-    if response.status_code == 200 and "audio/wav" in content_type and "filename=" in content_disposition:
+    encounter_content = response.json()[0]['species_id']
+    
+    if response.status_code == 200 and "application/json" in content_type and "filename=" in content_disposition:
         # Extract filename from the Content-Disposition header
         filename = content_disposition.split("filename=")[1].strip().strip('"')
-
+        
         file_path = os.path.join(DOWNLOAD_DIR, filename)
         with open(file_path, "wb") as file:
+            
+            for chunk in response.iter_content(chunk_size=8192):
+                file.write(chunk)
+        print(f"Downloaded: {filename}")
+    else:
+        print(f"Error downloading file {encounter_id}: {response.status_code}")
+
+def download_selection_file(selection_file_id, access_token):
+    """Download a selection file and save it with the given filename."""
+    url = f"{FILES_ENDPOINT}?id={selection_file_id}"
+    response = requests.get(url, stream=True, headers=create_authorization_header(access_token))  # Stream for large files
+    
+    content_type = response.headers.get("Content-Type", "")
+    content_disposition = response.headers.get("Content-Disposition", "")
+    
+    if response.status_code == 200 and "audio/wav" in content_type and "filename=" in content_disposition:
+        # Extract filename from the Content-Disposition header
+        print(content_disposition)
+        filename = content_disposition.split("filename=")[1].strip().strip('"')
+        
+        file_path = os.path.join(DOWNLOAD_DIR, filename)
+        with open(file_path, "wb") as file:
+            
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
         print(f"Downloaded: {filename}")
@@ -77,6 +101,7 @@ def main(recording_id):
     """Download all selections and spectrograms in a recording.
     Make sure OCEAN_USERNAME and OCEAN_PASSWORD are set as global environment variables.
     """
+    encounter_id = "003b28ca-861d-4348-97ca-aa378b08cc6b"
 
     username_from_env = os.getenv("OCEAN_USERNAME")
     password_from_env = os.getenv("OCEAN_PASSWORD")
@@ -91,11 +116,12 @@ def main(recording_id):
     for selection in selections:
         selection_file_id = selection.get("selection_file_id")
         if selection_file_id:
-            download_selection_file(selection_file_id, access_token)
-            download_spectrogram_file(selection["id"], access_token)
+            #download_selection_file(selection_file_id, access_token)
+            download_encounters(encounter_id,access_token)
+            #download_spectrogram_file(selection["id"], access_token)
         else:
             print(f"Skipping selection with missing file ID: {selection}")
 
 
 if __name__ == "__main__":
-    main("952833c8-de9b-11ef-85ea-00155dcfd62a")
+    main("0150032b-bded-11ef-90ba-0050568e393c")
