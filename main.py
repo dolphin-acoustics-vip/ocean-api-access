@@ -2,7 +2,7 @@ import os
 import requests
 
 # API URLs
-BASE_URL = "https://rescomp-test-2.st-andrews.ac.uk/ocean/api/"
+BASE_URL = "https://rescomp-test-2.st-andrews.ac.uk/ocean/api"
 SELECTIONS_ENDPOINT = f"{BASE_URL}/metadata/selections/"
 ENCOUNTERS_ENDPOINT = f"{BASE_URL}/metadata/encounters/"
 FILES_ENDPOINT = f"{BASE_URL}/filespace/file/"
