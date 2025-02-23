@@ -123,16 +123,17 @@ def main(recording_id):
 
         # Fetch selections from recording
         selections = fetch_selections(recording_id, access_token)
-
+        count = 0
         # Process each selection into files
         for selection in selections:
             selection_file_id = selection.get("selection_file_id")
             if selection_file_id:
+                count += 1
                 download_selection_file(selection_file_id, access_token, species_id)
                 #download_spectrogram_file(selection["id"], access_token, species_id)
             else:
                 print(f"Skipping selection with missing file ID: {selection}")
-
+        print(count)
 
 if __name__ == "__main__":
     main("0150032b-bded-11ef-90ba-0050568e393c")
