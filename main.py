@@ -14,6 +14,7 @@ def create_authorization_header(access_token):
 
 def get_access_token(username, password):
     url = f"{AUTH_ENDPOINT}?username={username}&password={password}"
+    print(f"Fetching access token... {url}")
     response = requests.post(url)
     if response.status_code == 200:
         access_token = response.json().get("access_token")
@@ -78,7 +79,7 @@ def download_selection_file(selection_file_id, access_token):
                 file.write(chunk)
         print(f"Downloaded: {filename}")
     else:
-        print(f"Error downloading file {selection_file_id}: {response.status_code}")
+        print(f"Error downloading file {selection_file_id}: {response.status_code}, {response.text}")
 
 def download_spectrogram_file(selection_id, access_token):
     url = f"{SPECTROGRAM_ENDPOINT}?selection_id={selection_id}"
@@ -94,7 +95,7 @@ def download_spectrogram_file(selection_id, access_token):
                 file.write(chunk)
         print(f"Downloaded: {filename}")
     else:
-        print(f"Error downloading file {selection_id}: {response.status_code}")
+        print(f"Error downloading spectrogram {selection_id}: {response.status_code}, {response.text}")
 
 
 def main(recording_id):
@@ -111,6 +112,7 @@ def main(recording_id):
 
     # Fetch selections
     selections = fetch_selections(recording_id, access_token)
+    print(f"Found {len(selections)} selections for recording {recording_id}")
 
     # Process each selection
     for selection in selections:
