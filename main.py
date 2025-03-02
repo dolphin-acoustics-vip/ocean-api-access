@@ -7,6 +7,7 @@ SELECTIONS_ENDPOINT = f"{BASE_URL}/metadata/selections/"
 ENCOUNTERS_ENDPOINT = f"{BASE_URL}/metadata/encounters/"
 RECORDINGS_ENDPOINT = f"{BASE_URL}/metadata/recordings/"
 FILES_ENDPOINT = f"{BASE_URL}/filespace/file/"
+SPECIES_ENDPOINT = f"{BASE_URL}/metadata/species/"
 SPECTROGRAM_ENDPOINT = f"{BASE_URL}/filespace/spectrogram/"
 AUTH_ENDPOINT = f"{BASE_URL}/auth/login/"
 
@@ -38,7 +39,20 @@ def fetch_selections(recording_id, access_token):
     response = requests.get(url, headers=create_authorization_header(access_token))
 
     if response.status_code == 200:
-        return response.json()  # Expecting a list of selections
+        return response.json()  # Expecting a list of species
+    else:
+        print(f"Error fetching selections: {response.status_code} - {response.text}")
+        return []
+    
+
+def fetch_species_name(species_id, access_token):
+    """Fetch all selections for a given recording ID."""
+    access_token = get_access_token(username_from_env, password_from_env)
+    url = f"{SPECIES_ENDPOINT}?id={species_id}"
+    response = requests.get(url, headers=create_authorization_header(access_token))
+    print(response.json())
+    if response.status_code == 200:
+        return response.json()[0]['scientific_name']  # xpecting a species' scientific name
     else:
         print(f"Error fetching selections: {response.status_code} - {response.text}")
         return []
@@ -55,7 +69,7 @@ def download_species(species_id, access_token):
     if response.status_code == 200:
         return encounter_list
     else:
-        print(f"Error fetching selections: {response.status_code} - {response.text}")
+        print(f"Error fetching species: {response.status_code} - {response.text}")
         return []
 
 def download_recording(encounter_id, access_token):
@@ -70,7 +84,7 @@ def download_recording(encounter_id, access_token):
     if response.status_code == 200:
         return recording_list
     else:
-        print(f"Error fetching selections: {response.status_code} - {response.text}")
+        print(f"Error fetching recordings: {response.status_code} - {response.text}")
         return []
 
 
@@ -127,9 +141,10 @@ def main(recording_id):
     access_token = get_access_token(username_from_env, password_from_env)
     for species_id in species_ids:
         count = 0
+        name = fetch_species_name(species_id,access_token)
         # Fetch species from an encounter
         encounter_ids = download_species(species_id,access_token)
-
+        
         for encounter_id in encounter_ids:
             # Fetch recording from an encounter
             recording_ids = download_recording(encounter_id,access_token)
@@ -141,7 +156,7 @@ def main(recording_id):
                     selection_file_id = selection.get("selection_file_id")
                     if selection_file_id:
                         count += 1
-                        download_selection_file(selection_file_id, access_token, species_id)
+                        download_selection_file(selection_file_id, access_token, name)
                         #download_spectrogram_file(selection["id"], access_token, species_id)
                     else:
                         print(f"Skipping selection with missing file ID: {selection}")
