@@ -23,7 +23,7 @@ def get_access_token(username, password):
 
     if response.status_code == 200:
         access_token = response.json().get("access_token")
-        print(f"Access token successfully generated {access_token[0:10]}...({len(access_token)-10} truncated).")
+        #print(f"Access token successfully generated {access_token[0:10]}...({len(access_token)-10} truncated).")
         return access_token
     else:
         print(f"Error logging in: {response.status_code} - {response.text}")
@@ -50,7 +50,7 @@ def fetch_species_name(species_id, access_token):
     access_token = get_access_token(username_from_env, password_from_env)
     url = f"{SPECIES_ENDPOINT}?id={species_id}"
     response = requests.get(url, headers=create_authorization_header(access_token))
-    print(response.json())
+    #print(response.json())
     if response.status_code == 200:
         return response.json()[0]['scientific_name']  # xpecting a species' scientific name
     else:
@@ -87,7 +87,6 @@ def download_recording(encounter_id, access_token):
         print(f"Error fetching recordings: {response.status_code} - {response.text}")
         return []
 
-
 def download_selection_file(selection_file_id, access_token, species_id):
     """Download a selection file and save it with the given filename."""
     access_token = get_access_token(username_from_env, password_from_env)
@@ -104,11 +103,21 @@ def download_selection_file(selection_file_id, access_token, species_id):
         filename = f"{species_id}_" + content_disposition.split("filename=")[1].strip().strip('"')
         
         file_path = os.path.join(DOWNLOAD_DIR, filename)
-        with open(file_path, "wb") as file:
+        if not os.path.exists(file_path):
+            return 0
+        try:
+                file_size_b = os.path.getsize(file_path)
+                file_size_mb = file_size_b / (1024*1024)
+
+                return file_size_mb    
+        except OSError as e:
+                return 0
+       
+        """with open(file_path, "wb") as file:
             
             for chunk in response.iter_content(chunk_size=8192):
-                file.write(chunk)
-        print(f"Downloaded: {filename}")
+                file.write(chunk)"""
+        #(f"Downloaded: {filename}")
     else:
         print(f"Error downloading file {selection_file_id}: {response.status_code}")
 
@@ -124,7 +133,7 @@ def download_spectrogram_file(selection_id, access_token, species_id):
         with open(file_path, "wb") as file:
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
-        print(f"Downloaded: {filename}")
+        #print(f"Downloaded: {filename}")
     else:
         print(f"Error downloading file {selection_id}: {response.status_code}")
 
@@ -137,14 +146,14 @@ def main(recording_id):
     
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-    species_ids = ["3ebfce8d-769b-11ef-9a56-0050568e393c","3ebfcfab-769b-11ef-9a56-0050568e393c"]
+    species_ids = ["3ebfcfab-769b-11ef-9a56-0050568e393c","3ebfce8d-769b-11ef-9a56-0050568e393c"]
     access_token = get_access_token(username_from_env, password_from_env)
     for species_id in species_ids:
         count = 0
-        name = fetch_species_name(species_id,access_token)
+        #name = fetch_species_name(species_id,access_token)
         # Fetch species from an encounter
         encounter_ids = download_species(species_id,access_token)
-        
+        total_size = 0
         for encounter_id in encounter_ids:
             # Fetch recording from an encounter
             recording_ids = download_recording(encounter_id,access_token)
@@ -155,12 +164,18 @@ def main(recording_id):
                 for selection in selections:
                     selection_file_id = selection.get("selection_file_id")
                     if selection_file_id:
-                        count += 1
-                        download_selection_file(selection_file_id, access_token, name)
+                        
+                        new_size = download_selection_file(selection_file_id, access_token, species_id)
+                        if isinstance(new_size, (int, float)):
+                            count += 1
+                            total_size += new_size
                         #download_spectrogram_file(selection["id"], access_token, species_id)
                     else:
                         print(f"Skipping selection with missing file ID: {selection}")
         print(count)
+        print(total_size)
+        
+        
 if __name__ == "__main__":
     
     main("0150032b-bded-11ef-90ba-0050568e393c")

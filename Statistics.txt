@@ -1,0 +1,25 @@
+
+OCEAN Database:
+
+    Pseudorca craissidens (5783ebfce8d-769b-11ef-9a56-0050568e393c):    578 Selection files     47.12262725830078 MB
+                                                                             
+
+
+    Steno bredanensis (3ebfcfab-769b-11ef-9a56-0050568e393c):           975 Selection files    TBD
+                                                             
+
+
+Local Audio Data (testing + training) (each file 187 kB):
+
+    Bottlenose Dolphin:         361 + 857 Selection Files           227766 KB        222.42 MB       
+
+    Common Dolphin:             317 + 739 Selection Files           197472 KB        192.8  MB
+
+    Killer Whale:               103 + 241 Selection Files           64328  KB        62.8   MB   
+
+    Long-finned_pilot_whale:    425 + 990 Selection Files           264605 KB        258.4  MB
+
+    Rissos dolphin:             268 + 622 Selection Files           166430 KB        162.5  MB
+
+    White-beaked_dolphin:       206 + 482 Selection Files           128656 KB        125.6  MB
+
