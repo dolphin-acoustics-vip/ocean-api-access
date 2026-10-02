@@ -1,127 +1,92 @@
-import os
-import requests
+"""Demonstration of access to the OCEAN API.
 
-# API URLs
-BASE_URL = "https://research.st-andrews.ac.uk/ocean/api"
-SELECTIONS_ENDPOINT = f"{BASE_URL}/metadata/selections/"
-ENCOUNTERS_ENDPOINT = f"{BASE_URL}/metadata/encounters/"
-FILES_ENDPOINT = f"{BASE_URL}/filespace/file/"
-SPECTROGRAM_ENDPOINT = f"{BASE_URL}/filespace/spectrogram/"
-AUTH_ENDPOINT = f"{BASE_URL}/auth/login/"
+The API exposes a hierarchy of metadata -- encounter -> recording -> selection --
+plus the audio file and spectrogram image belonging to each selection.
 
-def create_authorization_header(access_token):
-    return {"Authorization": f"Bearer {access_token}"}
+Run with no arguments and the script works from scratch: it logs in, finds the
+first selection it has access to, and downloads its audio file and spectrogram
+into ./downloads. Set OCEAN_USERNAME and OCEAN_PASSWORD first (see README).
 
-def get_access_token(username, password):
-    url = f"{AUTH_ENDPOINT}?username={username}&password={password}"
-    response = requests.post(url)
-    if response.status_code == 200:
-        access_token = response.json().get("access_token")
-        print(f"Access token successfully generated {access_token[0:10]}...({len(access_token)-10} truncated).")
-        return access_token
-    else:
-        print(f"Error logging in: {response.status_code} - {response.text}")
-        return None
+Usage:
+    python3 main.py                       # self-contained demo
+    python3 main.py --encounter-id ID     # show an encounter and its recordings
+    python3 main.py --recording-id ID     # download every selection + spectrogram
 
-# Output directory (change as needed)
+To write your own scripts, start from starter.py.
+"""
+import argparse
+import sys
+
+from ocean_client import ApiError, OceanClient
+
 DOWNLOAD_DIR = "downloads"
 
-def fetch_selections(recording_id, access_token):
-    """Fetch all selections for a given recording ID."""
-    url = f"{SELECTIONS_ENDPOINT}?recording_id={recording_id}"
-    response = requests.get(url, headers=create_authorization_header(access_token))
 
-    if response.status_code == 200:
-        return response.json()  # Expecting a list of selections
-    else:
-        print(f"Error fetching selections: {response.status_code} - {response.text}")
-        return []
+def run_demo(client, max_encounters=20):
+    """Find the first selection available to this user and download its files.
 
-def download_encounters(encounter_id, access_token):
-    url = f"{ENCOUNTERS_ENDPOINT}?id={encounter_id}"
-    response = requests.get(url, stream=True, headers=create_authorization_header(access_token))  # Stream for large files
-
-    content_type = response.headers.get("Content-Type", "")
-    content_disposition = response.headers.get("Content-Disposition", "")
-    encounter_content = response.json()[0]['species_id']
-    
-    if response.status_code == 200 and "application/json" in content_type and "filename=" in content_disposition:
-        # Extract filename from the Content-Disposition header
-        filename = content_disposition.split("filename=")[1].strip().strip('"')
-        
-        file_path = os.path.join(DOWNLOAD_DIR, filename)
-        with open(file_path, "wb") as file:
-            
-            for chunk in response.iter_content(chunk_size=8192):
-                file.write(chunk)
-        print(f"Downloaded: {filename}")
-    else:
-        print(f"Error downloading file {encounter_id}: {response.status_code}")
-
-def download_selection_file(selection_file_id, access_token):
-    """Download a selection file and save it with the given filename."""
-    url = f"{FILES_ENDPOINT}?id={selection_file_id}"
-    response = requests.get(url, stream=True, headers=create_authorization_header(access_token))  # Stream for large files
-    
-    content_type = response.headers.get("Content-Type", "")
-    content_disposition = response.headers.get("Content-Disposition", "")
-    
-    if response.status_code == 200 and "audio/wav" in content_type and "filename=" in content_disposition:
-        # Extract filename from the Content-Disposition header
-        print(content_disposition)
-        filename = content_disposition.split("filename=")[1].strip().strip('"')
-        
-        file_path = os.path.join(DOWNLOAD_DIR, filename)
-        with open(file_path, "wb") as file:
-            
-            for chunk in response.iter_content(chunk_size=8192):
-                file.write(chunk)
-        print(f"Downloaded: {filename}")
-    else:
-        print(f"Error downloading file {selection_file_id}: {response.status_code}")
-
-def download_spectrogram_file(selection_id, access_token):
-    url = f"{SPECTROGRAM_ENDPOINT}?selection_id={selection_id}"
-    response = requests.get(url, stream=True, headers=create_authorization_header(access_token))  # Stream for large files
-    content_type = response.headers.get("Content-Type", "")
-    content_disposition = response.headers.get("Content-Disposition", "")
-    if response.status_code == 200 and "image/png" in content_type and "filename=" in content_disposition:
-        # Extract filename from the Content-Disposition header
-        filename = content_disposition.split("filename=")[1].strip().strip('"')
-        file_path = os.path.join(DOWNLOAD_DIR, filename)
-        with open(file_path, "wb") as file:
-            for chunk in response.iter_content(chunk_size=8192):
-                file.write(chunk)
-        print(f"Downloaded: {filename}")
-    else:
-        print(f"Error downloading file {selection_id}: {response.status_code}")
-
-
-def main(recording_id):
-    """Download all selections and spectrograms in a recording.
-    Make sure OCEAN_USERNAME and OCEAN_PASSWORD are set as global environment variables.
+    Walks encounters -> recordings -> selections until it finds a selection with
+    an audio file, so no IDs need to be known in advance.
     """
-    encounter_id = "003b28ca-861d-4348-97ca-aa378b08cc6b"
+    encounters = client.encounters()[:max_encounters]
+    print(f"Searching {len(encounters)} encounter(s).")
 
-    username_from_env = os.getenv("OCEAN_USERNAME")
-    password_from_env = os.getenv("OCEAN_PASSWORD")
+    for encounter in encounters:
+        for recording in client.recordings(encounter_id=encounter["id"]):
+            for selection in client.selections(recording_id=recording["id"]):
+                if not selection.get("selection_file_id"):
+                    continue
+                print(f"Encounter {encounter['id']} / recording {recording['id']} / selection {selection['id']}")
+                print("Downloaded:", client.download_audio(selection, DOWNLOAD_DIR))
+                print("Downloaded:", client.download_spectrogram(selection, DOWNLOAD_DIR))
+                return
+    print("No selections with audio files were found for this account.")
 
-    access_token = get_access_token(username_from_env, password_from_env)
-    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-    # Fetch selections
-    selections = fetch_selections(recording_id, access_token)
+def show_encounter(client, encounter_id):
+    """Print an encounter and the recordings that belong to it."""
+    encounters = client.encounters(id=encounter_id)
+    if not encounters:
+        print(f"No encounter with id {encounter_id}")
+        return
+    print("Encounter:", encounters[0])
+    recordings = client.recordings(encounter_id=encounter_id)
+    print(f"{len(recordings)} recording(s):")
+    for recording in recordings:
+        print(" ", recording)
 
-    # Process each selection
+
+def download_recording(client, recording_id):
+    """Download the audio file and spectrogram of every selection in a recording."""
+    selections = client.selections(recording_id=recording_id)
+    print(f"Found {len(selections)} selection(s) in recording {recording_id}")
     for selection in selections:
-        selection_file_id = selection.get("selection_file_id")
-        if selection_file_id:
-            #download_selection_file(selection_file_id, access_token)
-            download_encounters(encounter_id,access_token)
-            #download_spectrogram_file(selection["id"], access_token)
-        else:
+        if not selection.get("selection_file_id"):
             print(f"Skipping selection with missing file ID: {selection}")
+            continue
+        print("Downloaded:", client.download_audio(selection, DOWNLOAD_DIR))
+        print("Downloaded:", client.download_spectrogram(selection, DOWNLOAD_DIR))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--encounter-id", help="show this encounter and its recordings")
+    parser.add_argument("--recording-id", help="download all selections and spectrograms of this recording")
+    args = parser.parse_args()
+
+    try:
+        client = OceanClient()
+        client.login()
+        print("Logged in.")
+        if args.recording_id:
+            download_recording(client, args.recording_id)
+        elif args.encounter_id:
+            show_encounter(client, args.encounter_id)
+        else:
+            run_demo(client)
+    except ApiError as e:
+        sys.exit(str(e))
 
 
 if __name__ == "__main__":
-    main("0150032b-bded-11ef-90ba-0050568e393c")
+    main()
